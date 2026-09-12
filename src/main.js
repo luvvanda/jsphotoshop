@@ -1,5 +1,11 @@
 import { createApp } from 'vue'
-import './style.css'
 import App from './App.vue'
+import 'vuetify/styles'
+import '@mdi/font/css/materialdesignicons.css'
+import { createVuetify } from 'vuetify'
 
-createApp(App).mount('#app')
+const vuetify = createVuetify({
+  theme: { defaultTheme: 'dark' }
+})
+
+createApp(App).use(vuetify).mount('#app')
