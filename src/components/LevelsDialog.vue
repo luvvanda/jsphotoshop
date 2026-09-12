@@ -1,16 +1,15 @@
 <script setup>
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch } from 'vue'
+import BaseDialog from './BaseDialog.vue'
 import HistogramCanvas from './HistogramCanvas.vue'
 import { computeHistogram } from '../utils/levels.js'
 
 const props = defineProps({
   open: Boolean,
-  imageData: Object,           
-  levels: Object                  
+  imageData: Object,
+  levels: Object
 })
 const emit = defineEmits(['close', 'apply', 'preview'])
-
-const dialogRef = ref(null)
 
 const {
   settings, activeChannel, previewEnabled,
@@ -31,21 +30,11 @@ const channelList = [
   { value: 'a', label: 'Альфа (A)' }
 ]
 
-watch(() => props.open, async (val) => {
-  await nextTick()
-  const dlg = dialogRef.value
-  if (!dlg) return
-  if (val && !dlg.open) dlg.showModal()
-  else if (!val && dlg.open) dlg.close()
-})
+const logScaleUI = ref(false)
 
 watch(() => JSON.stringify(settings.value), () => {
   if (previewEnabled.value) emit('preview')
 })
-
-function onClose() {
-  emit('close')
-}
 
 function onReset() {
   resetCurrent()
@@ -77,153 +66,103 @@ function onGammaInput(e) {
 </script>
 
 <template>
-  <dialog ref="dialogRef" class="levels-dialog" @close="onClose" @cancel.prevent="onCancel">
-    <div class="dialog-content">
-      <header>
-        <h2>Уровни (Levels)</h2>
-        <button class="close-btn" @click="onCancel">×</button>
-      </header>
+  <BaseDialog
+    :open="open"
+    title="Уровни (Levels)"
+    max-width="560px"
+    @close="onCancel"
+  >
+    <div class="controls-row">
+      <label class="field">
+        <span>Канал:</span>
+        <select v-model="activeChannel">
+          <option v-for="c in channelList" :key="c.value" :value="c.value">{{ c.label }}</option>
+        </select>
+      </label>
 
-      <div class="controls-row">
-        <label class="field">
-          <span>Канал:</span>
-          <select v-model="activeChannel">
-            <option v-for="c in channelList" :key="c.value" :value="c.value">{{ c.label }}</option>
-          </select>
-        </label>
+      <label class="field checkbox">
+        <input type="checkbox" v-model="previewEnabled" />
+        <span>Предпросмотр</span>
+      </label>
 
-        <label class="field checkbox">
-          <input type="checkbox" v-model="previewEnabled" />
-          <span>Предпросмотр</span>
-        </label>
-
-        <label class="field checkbox">
-          <input type="checkbox" v-model="logScaleUI" />
-          <span>Логарифм. шкала</span>
-        </label>
-      </div>
-
-      <HistogramCanvas
-        :histogram="histogram"
-        :log-scale="logScaleUI"
-        :black-point="current.black"
-        :white-point="current.white"
-        :gamma="current.gamma"
-      />
-
-      <div class="sliders">
-        <div class="slider-row">
-          <span class="mark black">■</span>
-          <input
-            type="range" min="0" max="254"
-            :value="current.black"
-            @input="onBlackInput"
-          />
-          <span class="value">{{ current.black }}</span>
-        </div>
-
-        <div class="slider-row">
-          <span class="mark gamma">▲</span>
-          <input
-            type="range" min="1" max="9.9" step="0.1"
-            :value="current.gamma"
-            @input="onGammaInput"
-          />
-          <span class="value">{{ current.gamma.toFixed(1) }}</span>
-        </div>
-
-        <div class="slider-row">
-          <span class="mark white">□</span>
-          <input
-            type="range" min="1" max="255"
-            :value="current.white"
-            @input="onWhiteInput"
-          />
-          <span class="value">{{ current.white }}</span>
-        </div>
-      </div>
-
-      <div class="numerics">
-        <label>
-          <span>Чёрная:</span>
-          <input type="number" min="0" max="254"
-                 :value="current.black"
-                 @input="onBlackInput" />
-        </label>
-        <label>
-          <span>Гамма:</span>
-          <input type="number" min="0.1" max="9.9" step="0.1"
-                 :value="current.gamma"
-                 @input="onGammaInput" />
-        </label>
-        <label>
-          <span>Белая:</span>
-          <input type="number" min="1" max="255"
-                 :value="current.white"
-                 @input="onWhiteInput" />
-        </label>
-      </div>
-
-      <footer>
-        <button @click="onReset">Сброс</button>
-        <button @click="onResetAll">Сбросить всё</button>
-        <div class="spacer" />
-        <button @click="onCancel">Отмена</button>
-        <button class="primary" @click="onApply">Применить</button>
-      </footer>
+      <label class="field checkbox">
+        <input type="checkbox" v-model="logScaleUI" />
+        <span>Логарифм. шкала</span>
+      </label>
     </div>
-  </dialog>
+
+    <HistogramCanvas
+      :histogram="histogram"
+      :log-scale="logScaleUI"
+      :black-point="current.black"
+      :white-point="current.white"
+      :gamma="current.gamma"
+    />
+
+    <div class="sliders">
+      <div class="slider-row">
+        <span class="mark black">■</span>
+        <input
+          type="range" min="0" max="254"
+          :value="current.black"
+          @input="onBlackInput"
+        />
+        <span class="value">{{ current.black }}</span>
+      </div>
+
+      <div class="slider-row">
+        <span class="mark gamma">▲</span>
+        <input
+          type="range" min="1" max="9.9" step="0.1"
+          :value="current.gamma"
+          @input="onGammaInput"
+        />
+        <span class="value">{{ current.gamma.toFixed(1) }}</span>
+      </div>
+
+      <div class="slider-row">
+        <span class="mark white">□</span>
+        <input
+          type="range" min="1" max="255"
+          :value="current.white"
+          @input="onWhiteInput"
+        />
+        <span class="value">{{ current.white }}</span>
+      </div>
+    </div>
+
+    <div class="numerics">
+      <label>
+        <span>Чёрная:</span>
+        <input type="number" min="0" max="254"
+               :value="current.black"
+               @input="onBlackInput" />
+      </label>
+      <label>
+        <span>Гамма:</span>
+        <input type="number" min="0.1" max="9.9" step="0.1"
+               :value="current.gamma"
+               @input="onGammaInput" />
+      </label>
+      <label>
+        <span>Белая:</span>
+        <input type="number" min="1" max="255"
+               :value="current.white"
+               @input="onWhiteInput" />
+      </label>
+    </div>
+
+    <template #footer>
+      <button @click="onReset">Сброс</button>
+      <button @click="onResetAll">Сбросить всё</button>
+      <div class="spacer" />
+      <button @click="onCancel">Отмена</button>
+      <button class="primary" @click="onApply">Применить</button>
+    </template>
+  </BaseDialog>
 </template>
 
-<script>
-export default {
-  data() {
-    return { logScaleUI: false }
-  }
-}
-</script>
-
 <style scoped>
-.levels-dialog {
-  border: none;
-  border-radius: 8px;
-  background: #252525;
-  color: #ddd;
-  padding: 0;
-  max-width: 560px;
-  width: 90vw;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-}
-.levels-dialog::backdrop {
-  background: rgba(0,0,0,0.6);
-}
-
-.dialog-content {
-  padding: 16px 20px 20px;
-  font: 13px system-ui, sans-serif;
-}
-
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-header h2 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-.close-btn {
-  background: transparent;
-  border: none;
-  color: #888;
-  font-size: 22px;
-  cursor: pointer;
-  line-height: 1;
-}
-.close-btn:hover { color: #fff; }
-
 .controls-row {
   display: flex;
   gap: 16px;
@@ -296,29 +235,4 @@ header h2 {
   border-radius: 4px;
   padding: 4px 6px;
 }
-
-footer {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #333;
-}
-footer button {
-  background: #2d2d2d;
-  color: #ddd;
-  border: 1px solid #444;
-  border-radius: 4px;
-  padding: 6px 14px;
-  cursor: pointer;
-  font-size: 13px;
-}
-footer button:hover { background: #3a3a3a; }
-footer button.primary {
-  background: #4fc3f7;
-  color: #000;
-  border-color: #4fc3f7;
-}
-footer button.primary:hover { background: #63cdfa; }
-.spacer { flex: 1; }
 </style>

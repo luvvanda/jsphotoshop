@@ -7,7 +7,7 @@ defineProps({
   hasImage: Boolean,
   eyedropperActive: Boolean
 })
-const emit = defineEmits(['file', 'download', 'reset', 'toggle-eyedropper', 'open-levels'])
+const emit = defineEmits(['file', 'download', 'reset', 'toggle-eyedropper', 'open-levels', 'open-resize'])
 
 const fileInput = ref(null)
 
@@ -57,6 +57,15 @@ function formatSize(bytes) {
         hidden
         @change="onFile"
       />
+      <v-btn
+        size="small"
+        variant="tonal"
+        :disabled="!hasImage"
+        @click="emit('open-resize')"
+        title="Изменить размер"
+    >
+        ⤢ Размер
+        </v-btn>
       <v-btn size="small" variant="tonal" :disabled="!hasImage" @click="emit('reset')">
         ↺ Сброс
       </v-btn>

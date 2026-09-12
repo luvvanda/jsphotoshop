@@ -1,28 +1,36 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
+import { resizeImageData, DEFAULT_INTERPOLATION } from '../utils/interpolation.js'
 
 const props = defineProps({
-  imageData: Object,           // что рисуется (может быть отфильтровано)
-  sourceImageData: Object,     // оригинал (для пипетки) — не обязательно, можно тоже imageData
-  eyedropperActive: Boolean
+  imageData: Object,
+  eyedropperActive: Boolean,
+  zoom: { type: Number, default: 100 }
 })
 const emit = defineEmits(['hover', 'pick'])
 
 const canvasRef = ref(null)
 
+const scaledData = computed(() => {
+  if (!props.imageData) return null
+  const z = props.zoom / 100
+  const w = Math.max(1, Math.round(props.imageData.width * z))
+  const h = Math.max(1, Math.round(props.imageData.height * z))
+  return resizeImageData(props.imageData, w, h, DEFAULT_INTERPOLATION)
+})
+
 function draw() {
-  if (!canvasRef.value || !props.imageData) return
-  const { width, height } = props.imageData
+  if (!canvasRef.value || !scaledData.value) return
+  const { width, height } = scaledData.value
   canvasRef.value.width = width
   canvasRef.value.height = height
   const ctx = canvasRef.value.getContext('2d')
   ctx.imageSmoothingEnabled = false
-  ctx.putImageData(props.imageData, 0, 0)
+  ctx.putImageData(scaledData.value, 0, 0)
 }
 
-watch(() => props.imageData, draw, { deep: false })
+watch(scaledData, draw, { deep: false })
 onMounted(draw)
-
 
 function getPixelCoords(e) {
   const canvas = canvasRef.value

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import TopBar from './components/TopBar.vue'
 import SidePanel from './components/SidePanel.vue'
 import CanvasView from './components/CanvasView.vue'
@@ -7,9 +7,14 @@ import ChannelPanel from './components/ChannelPanel.vue'
 import EyedropperPanel from './components/EyedropperPanel.vue'
 import StatusBar from './components/StatusBar.vue'
 import LevelsDialog from './components/LevelsDialog.vue'
+import ZoomPanel from './components/ZoomPanel.vue'
+import ResizeDialog from './components/ResizeDialog.vue'
 import { useImage } from './composables/useImage.js'
 import { useChannels } from './composables/useChannels.js'
 import { useLevels } from './composables/useLevels.js'
+import { useZoom } from './composables/useZoom.js'
+import { fitZoom } from './utils/scale.js'
+import { resizeImageData } from './utils/interpolation.js'
 
 const {
   imageData, imageInfo, fileName, fileSize,
@@ -22,6 +27,7 @@ const {
 } = useChannels(imageData)
 
 const levels = useLevels()
+const { zoom, setZoom } = useZoom()
 
 const hoveredPixel = ref(null)
 const pickedPixel = ref(null)
@@ -31,15 +37,31 @@ const error = ref('')
 const levelsOpen = ref(false)
 const levelsPreviewData = ref(null)
 
+const resizeOpen = ref(false)
+
 async function onFile(file) {
   try {
     error.value = ''
     hoveredPixel.value = null
     pickedPixel.value = null
-    // Сброс уровней при загрузке нового файла
     levels.resetAll()
     levelsPreviewData.value = null
     await loadFile(file)
+
+    await nextTick()
+    const canvasWrap = document.querySelector('.canvas-wrap')
+    if (canvasWrap && imageData.value) {
+      const rect = canvasWrap.getBoundingClientRect()
+      const z = fitZoom(
+        imageData.value.width,
+        imageData.value.height,
+        rect.width,
+        rect.height
+      )
+      setZoom(z)
+    } else {
+      setZoom(100)
+    }
   } catch (e) {
     error.value = e.message
   }
@@ -71,7 +93,6 @@ function onPick(coords) {
   }
 }
 
-
 function onOpenLevels() {
   levelsOpen.value = true
 }
@@ -102,6 +123,34 @@ function onLevelsApply() {
   levels.resetAll()
 }
 
+function onOpenResize() {
+  resizeOpen.value = true
+}
+
+function onResizeClose() {
+  resizeOpen.value = false
+}
+
+async function onResizeApply({ width, height, method }) {
+  if (!imageData.value) return
+  const resized = resizeImageData(imageData.value, width, height, method)
+  imageData.value = resized
+  resizeOpen.value = false
+
+  await nextTick()
+  const canvasWrap = document.querySelector('.canvas-wrap')
+  if (canvasWrap && imageData.value) {
+    const rect = canvasWrap.getBoundingClientRect()
+    const z = fitZoom(
+      imageData.value.width,
+      imageData.value.height,
+      rect.width,
+      rect.height
+    )
+    setZoom(z)
+  }
+}
+
 const canvasData = computed(() => {
   if (levelsOpen.value && levelsPreviewData.value) {
     return levelsPreviewData.value
@@ -122,6 +171,7 @@ const canvasData = computed(() => {
       @download="onDownload"
       @toggle-eyedropper="eyedropperActive = !eyedropperActive"
       @open-levels="onOpenLevels"
+      @open-resize="onOpenResize"
     />
 
     <div v-if="error" class="error">{{ error }}</div>
@@ -129,6 +179,7 @@ const canvasData = computed(() => {
     <main class="workspace">
       <aside class="left">
         <SidePanel :info="imageInfo" />
+        <ZoomPanel :zoom="zoom" @update:zoom="setZoom" />
         <ChannelPanel
           :image-data="imageData"
           :channels="channels"
@@ -141,6 +192,7 @@ const canvasData = computed(() => {
       <CanvasView
         :image-data="canvasData"
         :eyedropper-active="eyedropperActive"
+        :zoom="zoom"
         @hover="hoveredPixel = $event"
         @pick="onPick"
       />
@@ -163,6 +215,13 @@ const canvasData = computed(() => {
       @close="onLevelsClose"
       @apply="onLevelsApply"
       @preview="onLevelsPreview"
+    />
+
+    <ResizeDialog
+      :open="resizeOpen"
+      :image-data="imageData"
+      @close="onResizeClose"
+      @apply="onResizeApply"
     />
   </div>
 </template>
