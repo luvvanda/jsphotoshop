@@ -2,9 +2,11 @@
 import { ref, watch, onMounted } from 'vue'
 
 const props = defineProps({
-  imageData: Object
+  imageData: Object,           // что рисуется (может быть отфильтровано)
+  sourceImageData: Object,     // оригинал (для пипетки) — не обязательно, можно тоже imageData
+  eyedropperActive: Boolean
 })
-const emit = defineEmits(['hover'])
+const emit = defineEmits(['hover', 'pick'])
 
 const canvasRef = ref(null)
 
@@ -21,14 +23,32 @@ function draw() {
 watch(() => props.imageData, draw, { deep: false })
 onMounted(draw)
 
-function onMouseMove(e) {
-  if (!props.imageData) return
-  const rect = canvasRef.value.getBoundingClientRect()
-  const scaleX = canvasRef.value.width / rect.width
-  const scaleY = canvasRef.value.height / rect.height
+
+function getPixelCoords(e) {
+  const canvas = canvasRef.value
+  if (!canvas) return null
+  const rect = canvas.getBoundingClientRect()
+
+  const scaleX = canvas.width / rect.width
+  const scaleY = canvas.height / rect.height
+
   const x = Math.floor((e.clientX - rect.left) * scaleX)
   const y = Math.floor((e.clientY - rect.top) * scaleY)
-  emit('hover', { x, y })
+
+  if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return null
+  return { x, y }
+}
+
+function onMouseMove(e) {
+  if (!props.imageData) return
+  const coords = getPixelCoords(e)
+  emit('hover', coords)
+}
+
+function onClick(e) {
+  if (!props.eyedropperActive) return
+  const coords = getPixelCoords(e)
+  if (coords) emit('pick', coords)
 }
 
 function onLeave() {
@@ -41,8 +61,10 @@ function onLeave() {
     <canvas
       v-if="imageData"
       ref="canvasRef"
+      :class="{ eyedropper: eyedropperActive }"
       @mousemove="onMouseMove"
       @mouseleave="onLeave"
+      @click="onClick"
     />
     <div v-else class="empty">
       <p>Перетащите изображение сюда<br>или нажмите «Открыть»</p>
@@ -52,9 +74,9 @@ function onLeave() {
 
 <style scoped>
 .canvas-wrap {
-  flex: 1;
-  min-width: 0;      
-  min-height: 0;     
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -72,6 +94,11 @@ canvas {
   box-shadow: 0 0 0 1px #444, 0 8px 24px rgba(0,0,0,0.5);
   image-rendering: pixelated;
   cursor: crosshair;
+}
+
+canvas.eyedropper {
+  outline: 2px solid #4fc3f7;
+  outline-offset: -2px;
 }
 
 .empty {

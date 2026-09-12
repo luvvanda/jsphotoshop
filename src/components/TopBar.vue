@@ -4,9 +4,10 @@ import { ref } from 'vue'
 defineProps({
   fileName: String,
   fileSize: Number,
-  hasImage: Boolean
+  hasImage: Boolean,
+  eyedropperActive: Boolean
 })
-const emit = defineEmits(['file', 'download', 'reset'])
+const emit = defineEmits(['file', 'download', 'reset', 'toggle-eyedropper'])
 
 const fileInput = ref(null)
 
@@ -31,6 +32,15 @@ function formatSize(bytes) {
       <v-btn size="small" variant="tonal" @click="fileInput.click()">
          Открыть
       </v-btn>
+      <v-btn
+      size="small"
+      :color="eyedropperActive ? 'primary' : undefined"
+      :variant="eyedropperActive ? 'flat' : 'tonal'"
+      @click="emit('toggle-eyedropper')"
+      title="Пипетка"
+      >
+        Пипетка
+  </v-btn>
       <input
         ref="fileInput"
         type="file"
