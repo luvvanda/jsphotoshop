@@ -41,6 +41,10 @@ const resizeOpen = ref(false)
 
 async function onFile(file) {
   try {
+    if (previewRafId !== null) {
+      cancelAnimationFrame(previewRafId)
+      previewRafId = null
+    }
     error.value = ''
     hoveredPixel.value = null
     pickedPixel.value = null
@@ -93,26 +97,50 @@ function onPick(coords) {
   }
 }
 
+let previewRafId = null
+
 function onOpenLevels() {
   levelsOpen.value = true
 }
 
+
 function onLevelsPreview() {
   if (!imageData.value) return
+
   if (!levels.previewEnabled.value) {
+    if (previewRafId !== null) {
+      cancelAnimationFrame(previewRafId)
+      previewRafId = null
+    }
     levelsPreviewData.value = null
     return
   }
-  levelsPreviewData.value = levels.apply(imageData.value)
+
+  if (previewRafId !== null) {
+    cancelAnimationFrame(previewRafId)
+  }
+
+  previewRafId = requestAnimationFrame(() => {
+    levelsPreviewData.value = levels.apply(imageData.value)
+    previewRafId = null
+  })
 }
 
 function onLevelsClose() {
+  if (previewRafId !== null) {
+    cancelAnimationFrame(previewRafId)
+    previewRafId = null
+  }
   levelsOpen.value = false
   levelsPreviewData.value = null
   levels.resetAll()
 }
 
 function onLevelsApply() {
+  if (previewRafId !== null) {
+    cancelAnimationFrame(previewRafId)
+    previewRafId = null
+  }
   if (!imageData.value) return
   const result = levels.apply(imageData.value)
   if (result) {
