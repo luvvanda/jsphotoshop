@@ -34,7 +34,6 @@ export function useLevels() {
     s.white = Math.max(minAllowed, Math.min(v, 255))
   }
 
-
   function setGamma(v) {
     const s = settings.value[activeChannel.value]
     s.gamma = Math.max(0.1, Math.min(9.9, v))
@@ -43,7 +42,6 @@ export function useLevels() {
   function resetCurrent() {
     settings.value[activeChannel.value] = defaultSettings()
   }
-
 
   function resetAll() {
     settings.value = {
@@ -55,10 +53,6 @@ export function useLevels() {
     }
   }
 
-  /**
-   * @param {ImageData} source
-   * @returns {ImageData} 
-   */
   function apply(source) {
     if (!source) return null
 

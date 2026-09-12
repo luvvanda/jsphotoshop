@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import TopBar from './components/TopBar.vue'
 import SidePanel from './components/SidePanel.vue'
 import CanvasView from './components/CanvasView.vue'
@@ -9,10 +9,12 @@ import StatusBar from './components/StatusBar.vue'
 import LevelsDialog from './components/LevelsDialog.vue'
 import ZoomPanel from './components/ZoomPanel.vue'
 import ResizeDialog from './components/ResizeDialog.vue'
+import FilterDialog from './components/FilterDialog.vue'
 import { useImage } from './composables/useImage.js'
 import { useChannels } from './composables/useChannels.js'
 import { useLevels } from './composables/useLevels.js'
 import { useZoom } from './composables/useZoom.js'
+import { useFilter } from './composables/useFilter.js'
 import { fitZoom } from './utils/scale.js'
 import { resizeImageData } from './utils/interpolation.js'
 
@@ -28,6 +30,7 @@ const {
 
 const levels = useLevels()
 const { zoom, setZoom } = useZoom()
+const filter = useFilter()
 
 const hoveredPixel = ref(null)
 const pickedPixel = ref(null)
@@ -39,17 +42,117 @@ const levelsPreviewData = ref(null)
 
 const resizeOpen = ref(false)
 
+const filterPreviewData = ref(null)
+
+let previewRafId = null
+let filterRafId = null
+
+let workerBusy = false
+let workerQueued = null
+
+const filterWorker = new Worker(
+  new URL('./workers/filter.worker.js', import.meta.url),
+  { type: 'module' }
+)
+
+filterWorker.onmessage = (e) => {
+  console.log('Worker ответил. mode =', e.data.mode, 'size =', e.data.width, 'x', e.data.height)
+  const { data, width, height, mode } = e.data
+  const result = new ImageData(new Uint8ClampedArray(data), width, height)
+
+  const effectiveMode = mode || 'preview'
+
+  if (effectiveMode === 'apply') {
+    imageData.value = result
+    filterPreviewData.value = null
+  } else {
+    filterPreviewData.value = result
+  }
+
+  workerBusy = false
+
+  if (workerQueued) {
+    const next = workerQueued
+    workerQueued = null
+    dispatchFilterJob(next)
+  } else {
+    filter.processing.value = false
+  }
+}
+
+filterWorker.onerror = (e) => {
+  console.error('Worker error:', e.message || e)
+  workerBusy = false
+  workerQueued = null
+  filter.processing.value = false
+}
+
+onBeforeUnmount(() => {
+  filterWorker.terminate()
+})
+
+function dispatchFilterJob(job) {
+  console.log('Отправка в воркер:', job.mode, job.width, 'x', job.height)
+  const { width, height, data, mode } = job
+  const copy = new Uint8ClampedArray(data)
+
+  const kernelPlain = filter.kernel.value.map(row => [...row])
+  const channelsPlain = {
+    r: !!filter.channels.value.r,
+    g: !!filter.channels.value.g,
+    b: !!filter.channels.value.b,
+    a: !!filter.channels.value.a
+  }
+
+  workerBusy = true
+  filter.processing.value = true
+  filterWorker.postMessage({
+    imageData: copy.buffer,
+    width,
+    height,
+    kernel: kernelPlain,
+    divisor: Number(filter.divisor.value),
+    channels: channelsPlain,
+    edgeMode: String(filter.edgeMode.value),
+    mode
+  }, [copy.buffer])
+}
+
+function sendFilterJob(mode) {
+  if (!imageData.value) return
+  const src = imageData.value
+  const job = {
+    width: src.width,
+    height: src.height,
+    data: src.data,
+    mode
+  }
+
+  if (workerBusy) {
+    workerQueued = job
+  } else {
+    dispatchFilterJob(job)
+  }
+}
+
 async function onFile(file) {
   try {
     if (previewRafId !== null) {
       cancelAnimationFrame(previewRafId)
       previewRafId = null
     }
+    if (filterRafId !== null) {
+      cancelAnimationFrame(filterRafId)
+      filterRafId = null
+    }
+    workerQueued = null
     error.value = ''
     hoveredPixel.value = null
     pickedPixel.value = null
     levels.resetAll()
     levelsPreviewData.value = null
+    filterPreviewData.value = null
+    filter.reset()
     await loadFile(file)
 
     await nextTick()
@@ -97,12 +200,9 @@ function onPick(coords) {
   }
 }
 
-let previewRafId = null
-
 function onOpenLevels() {
   levelsOpen.value = true
 }
-
 
 function onLevelsPreview() {
   if (!imageData.value) return
@@ -179,7 +279,57 @@ async function onResizeApply({ width, height, method }) {
   }
 }
 
+function onOpenFilter() {
+  filter.filterOpen.value = true
+}
+
+function onFilterPreview() {
+  if (!imageData.value) return
+
+  if (!filter.previewEnabled.value) {
+    if (filterRafId !== null) {
+      cancelAnimationFrame(filterRafId)
+      filterRafId = null
+    }
+    filterPreviewData.value = null
+    return
+  }
+
+  if (filterRafId !== null) {
+    cancelAnimationFrame(filterRafId)
+  }
+
+  filterRafId = requestAnimationFrame(() => {
+    sendFilterJob('preview')
+    filterRafId = null
+  })
+}
+
+function onFilterApply() {
+  if (!imageData.value) return
+  if (filterRafId !== null) {
+    cancelAnimationFrame(filterRafId)
+    filterRafId = null
+  }
+  sendFilterJob('apply')
+}
+
+function onFilterClose() {
+  if (filterRafId !== null) {
+    cancelAnimationFrame(filterRafId)
+    filterRafId = null
+  }
+  filter.filterOpen.value = false
+  filterPreviewData.value = null
+  filter.processing.value = false
+  workerQueued = null
+  filter.reset()
+}
+
 const canvasData = computed(() => {
+  if (filter.filterOpen.value && filterPreviewData.value) {
+    return filterPreviewData.value
+  }
   if (levelsOpen.value && levelsPreviewData.value) {
     return levelsPreviewData.value
   }
@@ -200,6 +350,7 @@ const canvasData = computed(() => {
       @toggle-eyedropper="eyedropperActive = !eyedropperActive"
       @open-levels="onOpenLevels"
       @open-resize="onOpenResize"
+      @open-filter="onOpenFilter"
     />
 
     <div v-if="error" class="error">{{ error }}</div>
@@ -250,6 +401,15 @@ const canvasData = computed(() => {
       :image-data="imageData"
       @close="onResizeClose"
       @apply="onResizeApply"
+    />
+
+    <FilterDialog
+      :open="filter.filterOpen.value"
+      :image-data="imageData"
+      :filter="filter"
+      @close="onFilterClose"
+      @apply="onFilterApply"
+      @preview="onFilterPreview"
     />
   </div>
 </template>
