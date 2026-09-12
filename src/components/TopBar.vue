@@ -7,7 +7,7 @@ defineProps({
   hasImage: Boolean,
   eyedropperActive: Boolean
 })
-const emit = defineEmits(['file', 'download', 'reset', 'toggle-eyedropper'])
+const emit = defineEmits(['file', 'download', 'reset', 'toggle-eyedropper', 'open-levels'])
 
 const fileInput = ref(null)
 
@@ -41,6 +41,15 @@ function formatSize(bytes) {
       >
         Пипетка
   </v-btn>
+  <v-btn
+        size="small"
+        variant="tonal"
+        :disabled="!hasImage"
+        @click="emit('open-levels')"
+        title="Градационная коррекция (Уровни)"
+      >
+         Уровни
+      </v-btn>
       <input
         ref="fileInput"
         type="file"

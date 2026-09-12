@@ -1,13 +1,15 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import TopBar from './components/TopBar.vue'
 import SidePanel from './components/SidePanel.vue'
 import CanvasView from './components/CanvasView.vue'
 import ChannelPanel from './components/ChannelPanel.vue'
 import EyedropperPanel from './components/EyedropperPanel.vue'
 import StatusBar from './components/StatusBar.vue'
+import LevelsDialog from './components/LevelsDialog.vue'
 import { useImage } from './composables/useImage.js'
 import { useChannels } from './composables/useChannels.js'
+import { useLevels } from './composables/useLevels.js'
 
 const {
   imageData, imageInfo, fileName, fileSize,
@@ -19,16 +21,24 @@ const {
   toggle, showAll, showAlphaOnly
 } = useChannels(imageData)
 
+const levels = useLevels()
+
 const hoveredPixel = ref(null)
 const pickedPixel = ref(null)
 const eyedropperActive = ref(false)
 const error = ref('')
+
+const levelsOpen = ref(false)
+const levelsPreviewData = ref(null)
 
 async function onFile(file) {
   try {
     error.value = ''
     hoveredPixel.value = null
     pickedPixel.value = null
+    // Сброс уровней при загрузке нового файла
+    levels.resetAll()
+    levelsPreviewData.value = null
     await loadFile(file)
   } catch (e) {
     error.value = e.message
@@ -46,7 +56,6 @@ function onDrop(e) {
 }
 function onDragOver(e) { e.preventDefault() }
 
-// Пипетка читает из ОРИГИНАЛА, не из displayData
 function onPick(coords) {
   if (!imageData.value) return
   const { width, height, data } = imageData.value
@@ -61,6 +70,44 @@ function onPick(coords) {
     a: data[i + 3]
   }
 }
+
+
+function onOpenLevels() {
+  levelsOpen.value = true
+}
+
+function onLevelsPreview() {
+  if (!imageData.value) return
+  if (!levels.previewEnabled.value) {
+    levelsPreviewData.value = null
+    return
+  }
+  levelsPreviewData.value = levels.apply(imageData.value)
+}
+
+function onLevelsClose() {
+  levelsOpen.value = false
+  levelsPreviewData.value = null
+  levels.resetAll()
+}
+
+function onLevelsApply() {
+  if (!imageData.value) return
+  const result = levels.apply(imageData.value)
+  if (result) {
+    imageData.value = result
+  }
+  levelsOpen.value = false
+  levelsPreviewData.value = null
+  levels.resetAll()
+}
+
+const canvasData = computed(() => {
+  if (levelsOpen.value && levelsPreviewData.value) {
+    return levelsPreviewData.value
+  }
+  return displayData.value
+})
 </script>
 
 <template>
@@ -74,6 +121,7 @@ function onPick(coords) {
       @reset="reset"
       @download="onDownload"
       @toggle-eyedropper="eyedropperActive = !eyedropperActive"
+      @open-levels="onOpenLevels"
     />
 
     <div v-if="error" class="error">{{ error }}</div>
@@ -91,7 +139,7 @@ function onPick(coords) {
       </aside>
 
       <CanvasView
-        :image-data="displayData"
+        :image-data="canvasData"
         :eyedropper-active="eyedropperActive"
         @hover="hoveredPixel = $event"
         @pick="onPick"
@@ -107,6 +155,15 @@ function onPick(coords) {
     </main>
 
     <StatusBar :info="imageInfo" :file-name="fileName" />
+
+    <LevelsDialog
+      :open="levelsOpen"
+      :image-data="imageData"
+      :levels="levels"
+      @close="onLevelsClose"
+      @apply="onLevelsApply"
+      @preview="onLevelsPreview"
+    />
   </div>
 </template>
 
