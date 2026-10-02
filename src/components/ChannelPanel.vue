@@ -1,9 +1,12 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 
 const props = defineProps({
   imageData: Object,
-  channels: Object
+  channels: Object,
+  availableChannels: Array,
+  isGrayscale: Boolean,
+  hasAlpha: Boolean
 })
 const emit = defineEmits(['toggle', 'show-all', 'alpha-only'])
 
@@ -42,7 +45,6 @@ function drawPreview(canvas, mode) {
 
     switch (mode) {
       case 'gray':
-        // Формула яркости Rec.601
         vr = vg = vb = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
         break
       case 'grayAlpha':
@@ -56,7 +58,6 @@ function drawPreview(canvas, mode) {
         vr = r; vg = g; vb = b; va = a
         break
       case 'r':
-        // Красный канал в grayscale (стандарт фоторедакторов)
         vr = vg = vb = r
         break
       case 'g':
@@ -66,7 +67,6 @@ function drawPreview(canvas, mode) {
         vr = vg = vb = b
         break
       case 'a':
-        // Альфа — всегда в grayscale
         vr = vg = vb = a
         break
     }
@@ -92,12 +92,26 @@ function redrawAll() {
   drawPreview(c.a, 'a')
 }
 
-watch(() => props.imageData, redrawAll, { immediate: true })
+watch(
+  () => props.imageData,
+  async () => {
+    await nextTick()
+    redrawAll()
+  },
+  { immediate: true }
+)
 
-const isGrayMode = computed(() => {
-  const c = props.channels
-  return c.r === c.g && c.g === c.b
-})
+watch(
+  () => [props.isGrayscale, props.hasAlpha, props.availableChannels],
+  async () => {
+    await nextTick()
+    redrawAll()
+  },
+  { immediate: true, deep: true }
+)
+
+const has = (ch) => props.availableChannels?.includes(ch)
+const showRgb = computed(() => has('r') || has('g') || has('b'))
 </script>
 
 <template>
@@ -127,37 +141,55 @@ const isGrayMode = computed(() => {
 
       <div class="section-label">Отдельные каналы</div>
       <div class="thumbs">
-        <button
-          class="thumb"
-          :class="{ off: !channels.r }"
-          @click="emit('toggle', 'r')"
-          title="Красный канал"
-        >
-          <canvas :ref="el => setRef('r', el)" />
-          <span class="label-r">R</span>
-        </button>
+        <template v-if="isGrayscale">
+          <button
+            class="thumb"
+            :class="{ off: !channels.r }"
+            @click="emit('toggle', 'r')"
+            title="Серый (Grayscale)"
+          >
+            <canvas :ref="el => setRef('r', el)" />
+            <span>Gray</span>
+          </button>
+        </template>
+
+        <template v-else>
+          <button
+            v-if="has('r')"
+            class="thumb"
+            :class="{ off: !channels.r }"
+            @click="emit('toggle', 'r')"
+            title="Красный канал"
+          >
+            <canvas :ref="el => setRef('r', el)" />
+            <span class="label-r">R</span>
+          </button>
+
+          <button
+            v-if="has('g')"
+            class="thumb"
+            :class="{ off: !channels.g }"
+            @click="emit('toggle', 'g')"
+            title="Зелёный канал"
+          >
+            <canvas :ref="el => setRef('g', el)" />
+            <span class="label-g">G</span>
+          </button>
+
+          <button
+            v-if="has('b')"
+            class="thumb"
+            :class="{ off: !channels.b }"
+            @click="emit('toggle', 'b')"
+            title="Синий канал"
+          >
+            <canvas :ref="el => setRef('b', el)" />
+            <span class="label-b">B</span>
+          </button>
+        </template>
 
         <button
-          class="thumb"
-          :class="{ off: !channels.g }"
-          @click="emit('toggle', 'g')"
-          title="Зелёный канал"
-        >
-          <canvas :ref="el => setRef('g', el)" />
-          <span class="label-g">G</span>
-        </button>
-
-        <button
-          class="thumb"
-          :class="{ off: !channels.b }"
-          @click="emit('toggle', 'b')"
-          title="Синий канал"
-        >
-          <canvas :ref="el => setRef('b', el)" />
-          <span class="label-b">B</span>
-        </button>
-
-        <button
+          v-if="hasAlpha"
           class="thumb"
           :class="{ off: !channels.a }"
           @click="emit('toggle', 'a')"
@@ -170,7 +202,7 @@ const isGrayMode = computed(() => {
 
       <div class="actions">
         <button class="mini" @click="emit('show-all')">Все</button>
-        <button class="mini" @click="emit('alpha-only')">Только A</button>
+        <button v-if="hasAlpha" class="mini" @click="emit('alpha-only')">Только A</button>
       </div>
     </template>
 
@@ -200,8 +232,8 @@ h3 {
 }
 .thumbs {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);   
-  gap: 10px;                              
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
 }
 .thumb {
   position: relative;
@@ -212,7 +244,7 @@ h3 {
   overflow: hidden;
   padding: 0;
   cursor: default;
-  min-height: 90px;                       
+  min-height: 90px;
 }
 .thumb canvas {
   width: 100%;

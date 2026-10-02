@@ -24,9 +24,9 @@ const {
 } = useImage()
 
 const {
-  channels, displayData,
+  channels, availableChannels, displayData,
   toggle, showAll, showAlphaOnly
-} = useChannels(imageData)
+} = useChannels(imageData, imageInfo)
 
 const levels = useLevels()
 const { zoom, setZoom } = useZoom()
@@ -362,6 +362,9 @@ const canvasData = computed(() => {
         <ChannelPanel
           :image-data="imageData"
           :channels="channels"
+          :available-channels="availableChannels"
+          :is-grayscale="imageInfo?.isGrayscale"
+          :has-alpha="imageInfo?.hasAlpha"
           @toggle="toggle"
           @show-all="showAll"
           @alpha-only="showAlphaOnly"

@@ -103,7 +103,9 @@ function onGammaInput(e) {
       <div class="slider-row">
         <span class="mark black">■</span>
         <input
-          type="range" min="0" max="254"
+          type="range"
+          :min="0"
+          :max="current.white - 1"
           :value="current.black"
           @input="onBlackInput"
         />
@@ -113,7 +115,10 @@ function onGammaInput(e) {
       <div class="slider-row">
         <span class="mark gamma">▲</span>
         <input
-          type="range" min="1" max="9.9" step="0.1"
+          type="range"
+          min="1"
+          max="9.9"
+          step="0.1"
           :value="current.gamma"
           @input="onGammaInput"
         />
@@ -123,7 +128,9 @@ function onGammaInput(e) {
       <div class="slider-row">
         <span class="mark white">□</span>
         <input
-          type="range" min="1" max="255"
+          type="range"
+          :min="current.black + 1"
+          :max="255"
           :value="current.white"
           @input="onWhiteInput"
         />
@@ -134,21 +141,34 @@ function onGammaInput(e) {
     <div class="numerics">
       <label>
         <span>Чёрная:</span>
-        <input type="number" min="0" max="254"
-               :value="current.black"
-               @input="onBlackInput" />
+        <input
+          type="number"
+          :min="0"
+          :max="current.white - 1"
+          :value="current.black"
+          @input="onBlackInput"
+        />
       </label>
       <label>
         <span>Гамма:</span>
-        <input type="number" min="0.1" max="9.9" step="0.1"
-               :value="current.gamma"
-               @input="onGammaInput" />
+        <input
+          type="number"
+          min="0.1"
+          max="9.9"
+          step="0.1"
+          :value="current.gamma"
+          @input="onGammaInput"
+        />
       </label>
       <label>
         <span>Белая:</span>
-        <input type="number" min="1" max="255"
-               :value="current.white"
-               @input="onWhiteInput" />
+        <input
+          type="number"
+          :min="current.black + 1"
+          :max="255"
+          :value="current.white"
+          @input="onWhiteInput"
+        />
       </label>
     </div>
 

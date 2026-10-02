@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { decodeGB7, encodeGB7 } from '../formats/gb7'
+import { readPngHeader } from '../utils/png'
 
 export function useImage() {
   const imageBitmap = ref(null)
@@ -28,28 +29,58 @@ export function useImage() {
       imageInfo.value = {
         width: decoded.width,
         height: decoded.height,
-        colorDepth: decoded.colorDepth,
+        colorDepth: 7,
+        channels: decoded.hasMask ? 2 : 1,
+        hasAlpha: decoded.hasMask,
+        isGrayscale: true,
         hasMask: decoded.hasMask,
         format: 'GB7'
       }
-    } else if (file.type.startsWith('image/')) {
-      const bitmap = await createImageBitmap(file)
-      imageBitmap.value = bitmap
+      return
+    }
 
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(bitmap, 0, 0)
-      imageData.value = ctx.getImageData(0, 0, bitmap.width, bitmap.height)
-
-      imageInfo.value = {
-        width: bitmap.width,
-        height: bitmap.height,
-        colorDepth: 8,
-        hasMask: false,
-        format: file.type.split('/')[1].toUpperCase()
-      }
-    } else {
+    if (!file.type.startsWith('image/')) {
       throw new Error('Неподдерживаемый формат файла')
+    }
+
+    const bitmap = await createImageBitmap(file)
+    imageBitmap.value = bitmap
+
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(bitmap, 0, 0)
+    imageData.value = ctx.getImageData(0, 0, bitmap.width, bitmap.height)
+
+    const isPng = file.type === 'image/png'
+
+    if (isPng) {
+      const header = await readPngHeader(file)
+      if (header) {
+        imageInfo.value = {
+          width: bitmap.width,
+          height: bitmap.height,
+          colorDepth: header.bitDepth,
+          channels: header.channels,
+          hasAlpha: header.hasAlpha,
+          isGrayscale: header.isGrayscale,
+          colorTypeName: header.colorTypeName,
+          hasMask: false,
+          format: 'PNG'
+        }
+        return
+      }
+    }
+
+    imageInfo.value = {
+      width: bitmap.width,
+      height: bitmap.height,
+      colorDepth: 8,
+      channels: 3,
+      hasAlpha: false,
+      isGrayscale: false,
+      colorTypeName: 'RGB',
+      hasMask: false,
+      format: file.type.split('/')[1].toUpperCase()
     }
   }
 
