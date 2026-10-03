@@ -1,78 +1,27 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { imageChannels, projectChannels } from '../utils/channels.js'
 
 export function useChannels(imageDataRef, imageInfoRef) {
-  const channels = ref({ r: true, g: true, b: true, a: true })
-
-  const availableChannels = computed(() => {
-    const info = imageInfoRef?.value
-    if (!info) return ['r', 'g', 'b', 'a']
-
-    if (info.isGrayscale) {
-      const list = ['gray']
-      if (info.hasAlpha) list.push('a')
-      return list
-    }
-
-    const list = ['r', 'g', 'b']
-    if (info.hasAlpha) list.push('a')
-    return list
-  })
-
+  const channels = ref({ gray: true, r: true, g: true, b: true, a: true })
+  const availableChannels = computed(() => imageChannels(imageInfoRef.value))
+  function showAll() {
+    channels.value = Object.fromEntries(availableChannels.value.map(key => [key, true]))
+  }
+  watch(imageInfoRef, showAll, { immediate: true, flush: 'sync' })
   const displayData = computed(() => {
     const src = imageDataRef.value
     if (!src) return null
-
-    const { width, height, data } = src
-    const out = new Uint8ClampedArray(width * height * 4)
-
-    const rOn = channels.value.r
-    const gOn = channels.value.g
-    const bOn = channels.value.b
-    const aOn = channels.value.a
-
-    const alphaOnly = aOn && !rOn && !gOn && !bOn
-
-    for (let i = 0; i < data.length; i += 4) {
-      if (alphaOnly) {
-        const a = data[i + 3]
-        out[i]     = a
-        out[i + 1] = a
-        out[i + 2] = a
-        out[i + 3] = 255
-      } else {
-        out[i]     = rOn ? data[i]     : 0
-        out[i + 1] = gOn ? data[i + 1] : 0
-        out[i + 2] = bOn ? data[i + 2] : 0
-        out[i + 3] = aOn ? data[i + 3] : 255
-      }
-    }
-
-    return new ImageData(out, width, height)
+    return new ImageData(projectChannels(src.data, availableChannels.value, channels.value), src.width, src.height)
   })
-
-  function toggle(channel) {
-    channels.value[channel] = !channels.value[channel]
+  function toggle(key) {
+    if (availableChannels.value.includes(key)) channels.value[key] = !channels.value[key]
   }
-
-  function setChannel(channel, value) {
-    channels.value[channel] = value
+  function setChannel(key, value) {
+    if (availableChannels.value.includes(key)) channels.value[key] = Boolean(value)
   }
-
-  function showAll() {
-    channels.value = { r: true, g: true, b: true, a: true }
-  }
-
   function showAlphaOnly() {
-    channels.value = { r: false, g: false, b: false, a: true }
+    if (!availableChannels.value.includes('a')) return
+    channels.value = Object.fromEntries(availableChannels.value.map(key => [key, key === 'a']))
   }
-
-  return {
-    channels,
-    availableChannels,
-    displayData,
-    toggle,
-    setChannel,
-    showAll,
-    showAlphaOnly
-  }
+  return { channels, availableChannels, displayData, toggle, setChannel, showAll, showAlphaOnly }
 }

@@ -13,7 +13,9 @@ defineProps({
       <div class="stat"><span>Высота</span><b>{{ info.height }} px</b></div>
       <div class="stat"><span>Пикселей</span><b>{{ (info.width * info.height).toLocaleString() }}</b></div>
       <div class="stat"><span>Байт RGBA</span><b>{{ (info.width * info.height * 4).toLocaleString() }}</b></div>
-      <div class="stat"><span>Глубина</span><b>{{ info.colorDepth }} бит</b></div>
+      <div class="stat"><span>Глубина</span><b>{{ info.colorDepth }} бит/пиксель</b></div>
+      <div class="stat"><span>Каналы</span><b>{{ info.channels }}</b></div>
+      <div v-if="info.indexed" class="stat"><span>Хранение</span><b>Индекс палитры</b></div>
       <div class="stat"><span>Маска</span><b>{{ info.hasMask ? 'да' : 'нет' }}</b></div>
     </template>
     <p v-else class="hint">Нет изображения</p>

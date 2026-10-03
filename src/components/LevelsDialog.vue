@@ -2,11 +2,12 @@
 import { computed, ref, watch } from 'vue'
 import BaseDialog from './BaseDialog.vue'
 import HistogramCanvas from './HistogramCanvas.vue'
-import { computeHistogram } from '../utils/levels.js'
+import { computeHistogram, gammaMarker, markerGamma } from '../utils/levels.js'
 
 const props = defineProps({
   open: Boolean,
   imageData: Object,
+  imageInfo: Object,
   levels: Object
 })
 const emit = defineEmits(['close', 'apply', 'preview'])
@@ -22,13 +23,18 @@ const histogram = computed(() => {
   return computeHistogram(props.imageData, activeChannel.value)
 })
 
-const channelList = [
-  { value: 'master', label: 'RGB (Master)' },
-  { value: 'r', label: 'Красный (R)' },
-  { value: 'g', label: 'Зелёный (G)' },
-  { value: 'b', label: 'Синий (B)' },
-  { value: 'a', label: 'Альфа (A)' }
-]
+const channelList = computed(() => {
+  const list = [{ value: 'master', label: props.imageInfo?.isGrayscale ? 'Яркость (Gray)' : 'RGB (Master)' }]
+  if (!props.imageInfo?.isGrayscale) list.push(
+    { value: 'r', label: 'Красный (R)' }, { value: 'g', label: 'Зелёный (G)' }, { value: 'b', label: 'Синий (B)' })
+  if (props.imageInfo?.hasAlpha) list.push({ value: 'a', label: 'Альфа (A)' })
+  return list
+})
+const middle = computed(() => gammaMarker(current.value.black, current.value.white, current.value.gamma))
+watch(channelList, list => {
+  if (!list.some(item => item.value === activeChannel.value)) activeChannel.value = 'master'
+}, { immediate: true })
+watch(previewEnabled, () => emit('preview'))
 
 const logScaleUI = ref(false)
 
@@ -55,13 +61,17 @@ function onApply() {
 }
 
 function onBlackInput(e) {
-  setBlack(Number(e.target.value))
+  e.target.value = String(setBlack(e.target.value === '' ? current.value.black : Number(e.target.value)))
 }
 function onWhiteInput(e) {
-  setWhite(Number(e.target.value))
+  e.target.value = String(setWhite(e.target.value === '' ? current.value.white : Number(e.target.value)))
 }
 function onGammaInput(e) {
-  setGamma(Number(e.target.value))
+  e.target.value = String(setGamma(e.target.value === '' ? current.value.gamma : Number(e.target.value)))
+}
+function onMiddleInput(e) {
+  setGamma(markerGamma(current.value.black, current.value.white, Number(e.target.value)))
+  e.target.value = String(middle.value)
 }
 </script>
 
@@ -105,7 +115,7 @@ function onGammaInput(e) {
         <input
           type="range"
           :min="0"
-          :max="current.white - 1"
+          max="255"
           :value="current.black"
           @input="onBlackInput"
         />
@@ -116,11 +126,11 @@ function onGammaInput(e) {
         <span class="mark gamma">▲</span>
         <input
           type="range"
-          min="1"
-          max="9.9"
-          step="0.1"
-          :value="current.gamma"
-          @input="onGammaInput"
+          min="0"
+          max="255"
+          step="0.001"
+          :value="middle"
+          @input="onMiddleInput"
         />
         <span class="value">{{ current.gamma.toFixed(1) }}</span>
       </div>
@@ -129,8 +139,8 @@ function onGammaInput(e) {
         <span class="mark white">□</span>
         <input
           type="range"
-          :min="current.black + 1"
-          :max="255"
+          min="0"
+          max="255"
           :value="current.white"
           @input="onWhiteInput"
         />

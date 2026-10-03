@@ -1,215 +1,56 @@
 <script setup>
-import { computed, ref, watch, nextTick } from 'vue'
-
-const props = defineProps({
-  imageData: Object,
-  channels: Object,
-  availableChannels: Array,
-  isGrayscale: Boolean,
-  hasAlpha: Boolean
-})
+import { ref, watch, nextTick } from 'vue'
+const props = defineProps({ imageData: Object, channels: Object, availableChannels: Array, isGrayscale: Boolean, hasAlpha: Boolean })
 const emit = defineEmits(['toggle', 'show-all', 'alpha-only'])
-
-const previewCanvases = ref({
-  gray: null,
-  grayAlpha: null,
-  rgb: null,
-  rgba: null,
-  r: null,
-  g: null,
-  b: null,
-  a: null
-})
-
-function setRef(name, el) {
-  if (el) previewCanvases.value[name] = el
-}
-
-function drawPreview(canvas, mode) {
-  if (!canvas || !props.imageData) return
-
+const canvases = ref({})
+const labels = { gray: 'Gray', r: 'R', g: 'G', b: 'B', a: 'Alpha' }
+const names = { gray: 'Серый', r: 'Красный', g: 'Зелёный', b: 'Синий', a: 'Прозрачность' }
+function draw() {
+  if (!props.imageData) return
   const { width, height, data } = props.imageData
-  canvas.width = width
-  canvas.height = height
-
-  const ctx = canvas.getContext('2d')
-  const out = ctx.createImageData(width, height)
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i]
-    const g = data[i + 1]
-    const b = data[i + 2]
-    const a = data[i + 3]
-
-    let vr = 0, vg = 0, vb = 0, va = 255
-
-    switch (mode) {
-      case 'gray':
-        vr = vg = vb = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
-        break
-      case 'grayAlpha':
-        vr = vg = vb = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
-        va = a
-        break
-      case 'rgb':
-        vr = r; vg = g; vb = b
-        break
-      case 'rgba':
-        vr = r; vg = g; vb = b; va = a
-        break
-      case 'r':
-        vr = vg = vb = r
-        break
-      case 'g':
-        vr = vg = vb = g
-        break
-      case 'b':
-        vr = vg = vb = b
-        break
-      case 'a':
-        vr = vg = vb = a
-        break
+  for (const key of props.availableChannels || []) {
+    const canvas = canvases.value[key]
+    if (!canvas) continue
+    // Bounded thumbnails preserve aspect ratio; alpha is always a grayscale mask.
+    const scale = Math.min(150 / width, 90 / height)
+    canvas.width = Math.max(1, Math.round(width * scale))
+    canvas.height = Math.max(1, Math.round(height * scale))
+    const ctx = canvas.getContext('2d'), preview = ctx.createImageData(canvas.width, canvas.height)
+    const component = { gray: 0, r: 0, g: 1, b: 2, a: 3 }[key]
+    for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+      const sx = Math.min(width - 1, Math.floor(x * width / canvas.width))
+      const sy = Math.min(height - 1, Math.floor(y * height / canvas.height))
+      const value = data[(sy * width + sx) * 4 + component], i = (y * canvas.width + x) * 4
+      preview.data[i] = preview.data[i + 1] = preview.data[i + 2] = value
+      preview.data[i + 3] = 255
     }
-
-    out.data[i]     = vr
-    out.data[i + 1] = vg
-    out.data[i + 2] = vb
-    out.data[i + 3] = va
+    ctx.putImageData(preview, 0, 0)
   }
-
-  ctx.putImageData(out, 0, 0)
 }
-
-function redrawAll() {
-  const c = previewCanvases.value
-  drawPreview(c.gray, 'gray')
-  drawPreview(c.grayAlpha, 'grayAlpha')
-  drawPreview(c.rgb, 'rgb')
-  drawPreview(c.rgba, 'rgba')
-  drawPreview(c.r, 'r')
-  drawPreview(c.g, 'g')
-  drawPreview(c.b, 'b')
-  drawPreview(c.a, 'a')
-}
-
-watch(
-  () => props.imageData,
-  async () => {
-    await nextTick()
-    redrawAll()
-  },
-  { immediate: true }
-)
-
-watch(
-  () => [props.isGrayscale, props.hasAlpha, props.availableChannels],
-  async () => {
-    await nextTick()
-    redrawAll()
-  },
-  { immediate: true, deep: true }
-)
-
-const has = (ch) => props.availableChannels?.includes(ch)
-const showRgb = computed(() => has('r') || has('g') || has('b'))
+watch(() => [props.imageData, props.availableChannels], async () => { await nextTick(); draw() }, { immediate: true })
 </script>
-
 <template>
   <div class="channels-panel">
     <h3>Каналы</h3>
-
     <template v-if="imageData">
-      <div class="section-label">Представление</div>
+      <div class="section-label">{{ isGrayscale ? 'Grayscale' : 'RGB' }}{{ hasAlpha ? ' + Alpha' : '' }} · {{ availableChannels.length }} канал(а)</div>
       <div class="thumbs">
-        <div class="thumb" title="Grayscale">
-          <canvas :ref="el => setRef('gray', el)" />
-          <span>1</span>
-        </div>
-        <div class="thumb" title="Grayscale + Alpha">
-          <canvas :ref="el => setRef('grayAlpha', el)" />
-          <span>2</span>
-        </div>
-        <div class="thumb" title="RGB">
-          <canvas :ref="el => setRef('rgb', el)" />
-          <span>3</span>
-        </div>
-        <div class="thumb" title="RGB + Alpha">
-          <canvas :ref="el => setRef('rgba', el)" />
-          <span>4</span>
-        </div>
-      </div>
-
-      <div class="section-label">Отдельные каналы</div>
-      <div class="thumbs">
-        <template v-if="isGrayscale">
-          <button
-            class="thumb"
-            :class="{ off: !channels.r }"
-            @click="emit('toggle', 'r')"
-            title="Серый (Grayscale)"
-          >
-            <canvas :ref="el => setRef('r', el)" />
-            <span>Gray</span>
-          </button>
-        </template>
-
-        <template v-else>
-          <button
-            v-if="has('r')"
-            class="thumb"
-            :class="{ off: !channels.r }"
-            @click="emit('toggle', 'r')"
-            title="Красный канал"
-          >
-            <canvas :ref="el => setRef('r', el)" />
-            <span class="label-r">R</span>
-          </button>
-
-          <button
-            v-if="has('g')"
-            class="thumb"
-            :class="{ off: !channels.g }"
-            @click="emit('toggle', 'g')"
-            title="Зелёный канал"
-          >
-            <canvas :ref="el => setRef('g', el)" />
-            <span class="label-g">G</span>
-          </button>
-
-          <button
-            v-if="has('b')"
-            class="thumb"
-            :class="{ off: !channels.b }"
-            @click="emit('toggle', 'b')"
-            title="Синий канал"
-          >
-            <canvas :ref="el => setRef('b', el)" />
-            <span class="label-b">B</span>
-          </button>
-        </template>
-
-        <button
-          v-if="hasAlpha"
-          class="thumb"
-          :class="{ off: !channels.a }"
-          @click="emit('toggle', 'a')"
-          title="Альфа-канал (прозрачность)"
-        >
-          <canvas :ref="el => setRef('a', el)" />
-          <span class="label-a">A</span>
+        <button v-for="key in availableChannels" :key="key" class="thumb"
+          :class="{ off: !channels[key] }" :aria-pressed="!!channels[key]"
+          :aria-label="`${names[key]}: ${channels[key] ? 'включён' : 'выключен'}`"
+          :title="names[key]" @click="emit('toggle', key)">
+          <canvas :ref="el => { canvases[key] = el }" />
+          <span>{{ labels[key] }} · {{ channels[key] ? 'вкл' : 'выкл' }}</span>
         </button>
       </div>
-
       <div class="actions">
         <button class="mini" @click="emit('show-all')">Все</button>
-        <button v-if="hasAlpha" class="mini" @click="emit('alpha-only')">Только A</button>
+        <button v-if="hasAlpha" class="mini" @click="emit('alpha-only')">Только Alpha</button>
       </div>
     </template>
-
     <p v-else class="hint">Загрузите изображение</p>
   </div>
 </template>
-
 <style scoped>
 .channels-panel {
   padding: 12px 16px;

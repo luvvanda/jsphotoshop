@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { decodeGB7, encodeGB7 } from '../formats/gb7'
-import { readPngHeader } from '../utils/png'
+import { readPngHeader } from '../utils/png.js'
+import { readJpegHeader } from '../utils/jpeg.js'
 
 export function useImage() {
   const imageBitmap = ref(null)
@@ -51,7 +52,7 @@ export function useImage() {
     ctx.drawImage(bitmap, 0, 0)
     imageData.value = ctx.getImageData(0, 0, bitmap.width, bitmap.height)
 
-    const isPng = file.type === 'image/png'
+    const isPng = file.type === 'image/png' || /\.png$/i.test(file.name)
 
     if (isPng) {
       const header = await readPngHeader(file)
@@ -59,7 +60,11 @@ export function useImage() {
         imageInfo.value = {
           width: bitmap.width,
           height: bitmap.height,
-          colorDepth: header.bitDepth,
+          colorDepth: header.colorDepth,
+          bitDepth: header.bitDepth,
+          sampleBitDepth: header.sampleBitDepth,
+          indexed: header.indexed,
+          storedChannels: header.storedChannels,
           channels: header.channels,
           hasAlpha: header.hasAlpha,
           isGrayscale: header.isGrayscale,
@@ -71,14 +76,16 @@ export function useImage() {
       }
     }
 
+    const jpeg = /jpe?g/i.test(file.type) || /\.jpe?g$/i.test(file.name) ? await readJpegHeader(file) : null
     imageInfo.value = {
       width: bitmap.width,
       height: bitmap.height,
-      colorDepth: 8,
-      channels: 3,
+      colorDepth: jpeg?.colorDepth ?? 24,
+      sampleBitDepth: jpeg?.sampleBitDepth ?? 8,
+      channels: jpeg?.channels ?? 3,
       hasAlpha: false,
-      isGrayscale: false,
-      colorTypeName: 'RGB',
+      isGrayscale: jpeg?.isGrayscale ?? false,
+      colorTypeName: jpeg?.isGrayscale ? 'Grayscale' : 'RGB',
       hasMask: false,
       format: file.type.split('/')[1].toUpperCase()
     }

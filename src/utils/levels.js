@@ -1,3 +1,18 @@
+export function normalizeLevels(black, white, gamma) {
+  const finite = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback
+  black = Math.max(0, Math.min(254, Math.round(finite(black, 0))))
+  white = Math.max(black + 1, Math.min(255, Math.round(finite(white, 255))))
+  gamma = Math.max(0.1, Math.min(9.9, finite(gamma, 1)))
+  return { black, white, gamma }
+}
+export function gammaMarker(black, white, gamma) {
+  return black + (white - black) * Math.pow(0.5, gamma)
+}
+export function markerGamma(black, white, marker) {
+  const ratio = Math.max(0.000001, Math.min(0.999999, (marker - black) / (white - black)))
+  return Math.max(0.1, Math.min(9.9, Math.log(ratio) / Math.log(0.5)))
+}
+
 const CHANNEL_INDEX = { r: 0, g: 1, b: 2, a: 3 }
 
 function srgbToLinear(v8) {
@@ -25,8 +40,7 @@ export function luma601(r, g, b) {
 export function buildLUT(black, white, gamma) {
   const lut = new Uint8ClampedArray(256)
 
-  if (white <= black) white = black + 1
-  if (gamma <= 0) gamma = 1
+  ;({ black, white, gamma } = normalizeLevels(black, white, gamma))
 
   const range = white - black
   const invGamma = 1 / gamma

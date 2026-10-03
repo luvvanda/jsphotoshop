@@ -23,10 +23,6 @@ const {
   loadFile, reset, download
 } = useImage()
 
-const {
-  channels, availableChannels, displayData,
-  toggle, showAll, showAlphaOnly
-} = useChannels(imageData, imageInfo)
 
 const levels = useLevels()
 const { zoom, setZoom } = useZoom()
@@ -43,6 +39,16 @@ const levelsPreviewData = ref(null)
 const resizeOpen = ref(false)
 
 const filterPreviewData = ref(null)
+const channelSource = computed(() => {
+  if (filter.filterOpen.value && filter.previewEnabled.value && filterPreviewData.value) return filterPreviewData.value
+  if (levelsOpen.value && levels.previewEnabled.value && levelsPreviewData.value) return levelsPreviewData.value
+  return imageData.value
+})
+const {
+  channels, availableChannels, displayData,
+  toggle, showAll, showAlphaOnly
+} = useChannels(channelSource, imageInfo)
+
 
 let previewRafId = null
 let filterRafId = null
@@ -326,15 +332,7 @@ function onFilterClose() {
   filter.reset()
 }
 
-const canvasData = computed(() => {
-  if (filter.filterOpen.value && filterPreviewData.value) {
-    return filterPreviewData.value
-  }
-  if (levelsOpen.value && levelsPreviewData.value) {
-    return levelsPreviewData.value
-  }
-  return displayData.value
-})
+const canvasData = displayData
 </script>
 
 <template>
@@ -394,6 +392,7 @@ const canvasData = computed(() => {
       :open="levelsOpen"
       :image-data="imageData"
       :levels="levels"
+      :image-info="imageInfo"
       @close="onLevelsClose"
       @apply="onLevelsApply"
       @preview="onLevelsPreview"

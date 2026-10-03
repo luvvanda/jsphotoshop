@@ -8,12 +8,9 @@ const props = defineProps({
 
 const depthText = computed(() => {
   if (!props.info) return ''
-  const { colorDepth, channels, isGrayscale } = props.info
-
-  if (isGrayscale) {
-    return `${colorDepth} бит × 1 канал`
-  }
-  return `${colorDepth} бит/канал × ${channels} канала`
+  const { colorDepth, indexed, format, hasMask } = props.info
+  if (format === 'GB7') return `${colorDepth} бит серого${hasMask ? ' + 1 бит маски' : ''}`
+  return `${colorDepth} бит/пиксель${indexed ? ' (индекс палитры)' : ''}`
 })
 </script>
 

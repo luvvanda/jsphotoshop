@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { buildLUT, applyLUTToChannel } from '../utils/levels.js'
+import { buildLUT, applyLUTToChannel, normalizeLevels } from '../utils/levels.js'
 
 const CHANNELS = ['master', 'r', 'g', 'b', 'a']
 
@@ -23,20 +23,22 @@ export function useLevels() {
   const current = computed(() => settings.value[activeChannel.value])
 
   function setBlack(v) {
-    const s = settings.value[activeChannel.value]
-    const maxAllowed = Math.min(s.white - 1, 254)
-    s.black = Math.max(0, Math.min(v, maxAllowed))
+    const s = current.value, candidate = Number(v)
+    if (Number.isFinite(candidate)) s.black = Math.max(0, Math.min(Math.round(candidate), s.white - 1))
+    Object.assign(s, normalizeLevels(s.black, s.white, s.gamma))
+    return s.black
   }
-
   function setWhite(v) {
-    const s = settings.value[activeChannel.value]
-    const minAllowed = Math.max(s.black + 1, 1)
-    s.white = Math.max(minAllowed, Math.min(v, 255))
+    const s = current.value, candidate = Number(v)
+    if (Number.isFinite(candidate)) s.white = Math.max(s.black + 1, Math.min(Math.round(candidate), 255))
+    Object.assign(s, normalizeLevels(s.black, s.white, s.gamma))
+    return s.white
   }
-
   function setGamma(v) {
-    const s = settings.value[activeChannel.value]
-    s.gamma = Math.max(0.1, Math.min(9.9, v))
+    const s = current.value
+    if (Number.isFinite(Number(v))) s.gamma = Number(v)
+    Object.assign(s, normalizeLevels(s.black, s.white, s.gamma))
+    return s.gamma
   }
 
   function resetCurrent() {
